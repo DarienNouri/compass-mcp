@@ -31,6 +31,7 @@
     "SKILL.md"
   ],
   "scripts": {
+    "prepare": "npm run bundle",
     "build": "tsc --noEmit && npm run bundle",
     "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --external:dotenv --banner:js='import { createRequire as __createRequire } from \"module\"; const require = __createRequire(import.meta.url);' --outfile=dist/bundle.js",
     "dev": "node dist/bundle.js",

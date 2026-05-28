@@ -1,15 +1,19 @@
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CompassClient } from '../client.js';
-import { textResult } from '../mcp.js';
-import { extractInitialData, extractUc } from '../page-state.js';
-import { extractPidFromUrl, urlToPath } from '../url.js';
-import { findLolResults } from './search.js';
+import { z } from "zod";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CompassClient } from "../client.js";
+import { textResult } from "../mcp.js";
+import {
+  extractInitialData,
+  extractUc,
+  diagnoseDetailHtml,
+} from "../page-state.js";
+import { extractPidFromUrl, urlToPath } from "../url.js";
+import { findLolResults } from "./search.js";
 import {
   extractFeatures,
   loadCommunities,
   type ExtractedFeatures,
-} from '../features.js';
+} from "../features.js";
 
 /**
  * Compass homedetails: GET /homedetails/<slug>/<listingIdSHA>_lid/
@@ -354,7 +358,7 @@ export function buildPath(args: {
   if (args.url) return urlToPath(args.url);
   if (args.listing_id_sha) return null;
   throw new Error(
-    'compass property tool: must provide either listing_id_sha or url'
+    "compass property tool: must provide either listing_id_sha or url",
   );
 }
 
@@ -371,14 +375,14 @@ export function buildPath(args: {
  */
 export async function resolvePathFromSha(
   client: CompassClient,
-  sha: string
+  sha: string,
 ): Promise<string> {
   const searchPath = `/homes-for-sale/?q=${encodeURIComponent(sha)}`;
   const html = await client.fetchHtml(searchPath);
   const uc = extractUc(html);
   const lol = uc ? findLolResults(uc) : null;
   const match = (lol?.data ?? []).find(
-    (entry) => entry?.listing?.listingIdSHA === sha
+    (entry) => entry?.listing?.listingIdSHA === sha,
   );
   const pageLink = match?.listing?.pageLink;
   if (!pageLink) {
@@ -386,7 +390,7 @@ export async function resolvePathFromSha(
       `Could not resolve listing_id_sha "${sha}" to a Compass URL via site search. ` +
         `Compass returns 410 Gone for the slug-less /homedetails/<sha>_lid/ form, ` +
         `and no /homes-for-sale/?q=<sha> result matched. If you have the address, ` +
-        `pass the \`url\` field from a compass_search_properties result instead.`
+        `pass the \`url\` field from a compass_search_properties result instead.`,
     );
   }
   return urlToPath(pageLink);
@@ -403,7 +407,7 @@ export async function resolvePathFromSha(
  */
 export async function fetchListingRecord(
   client: CompassClient,
-  args: { listing_id_sha?: string; url?: string }
+  args: { listing_id_sha?: string; url?: string },
 ): Promise<{ listing: RawListing; path: string }> {
   let path = buildPath(args);
   if (path === null) {
@@ -415,13 +419,14 @@ export async function fetchListingRecord(
   if (!data) {
     throw new Error(
       `Could not locate __INITIAL_DATA__ at ${path}. ` +
-        `Compass may have changed their page structure, or the listing may be restricted.`
+        `Compass may have changed their page structure, or the listing may be restricted. ` +
+        `[diag ${diagnoseDetailHtml(html)}]`,
     );
   }
   const listing = findListing(data);
   if (!listing) {
     throw new Error(
-      `__INITIAL_DATA__.props.listingRelation.listing missing at ${path}.`
+      `__INITIAL_DATA__.props.listingRelation.listing missing at ${path}.`,
     );
   }
   return { listing, path };
@@ -455,7 +460,7 @@ export function buildPortalUrlHyperlink(args: {
     : undefined;
   const lidUrl = args.pageLink
     ? `https://www.compass.com${args.pageLink}`
-    : `https://www.compass.com/homedetails/${args.listingIdSHA ?? ''}_lid/`;
+    : `https://www.compass.com/homedetails/${args.listingIdSHA ?? ""}_lid/`;
   const target = args.pid ? (pidUrl ?? lidUrl) : lidUrl;
   return `=HYPERLINK("${target}","Compass")`;
 }
@@ -468,29 +473,29 @@ export function buildPortalUrlHyperlink(args: {
  */
 export function hoaToMonthlyUsd(
   amount: number | undefined,
-  frequency: string | undefined
+  frequency: string | undefined,
 ): number | null {
-  if (typeof amount !== 'number' || !frequency) return null;
+  if (typeof amount !== "number" || !frequency) return null;
   let monthly: number;
   switch (frequency) {
-    case 'Monthly':
+    case "Monthly":
       monthly = amount;
       break;
-    case 'Annually':
+    case "Annually":
       monthly = amount / 12;
       break;
-    case 'Quarterly':
+    case "Quarterly":
       monthly = amount / 3;
       break;
-    case 'SemiAnnually':
+    case "SemiAnnually":
       monthly = amount / 6;
       break;
-    case 'Weekly':
+    case "Weekly":
       monthly = (amount * 52) / 12;
       break;
     default:
       console.error(
-        `[compass-mcp] hoa_monthly_usd: unknown frequency "${frequency}" — returning null`
+        `[compass-mcp] hoa_monthly_usd: unknown frequency "${frequency}" — returning null`,
       );
       return null;
   }
@@ -514,9 +519,13 @@ const SQFT_PER_ACRE = 43_560;
  * a real, non-zero acreage).
  */
 export function lotSizeAcres(
-  lotSqFt: number | undefined | null
+  lotSqFt: number | undefined | null,
 ): number | null {
-  if (typeof lotSqFt !== 'number' || !Number.isFinite(lotSqFt) || lotSqFt <= 0) {
+  if (
+    typeof lotSqFt !== "number" ||
+    !Number.isFinite(lotSqFt) ||
+    lotSqFt <= 0
+  ) {
     return null;
   }
   const acres = Math.round((lotSqFt / SQFT_PER_ACRE) * 100) / 100;
@@ -528,7 +537,7 @@ export function lotSizeAcres(
  * some new-construction listings. (Issue #38.)
  */
 export function sanitizeTaxAnnual(raw: number | undefined): number | null {
-  if (typeof raw !== 'number') return null;
+  if (typeof raw !== "number") return null;
   // Real-world: $1 is a not-yet-assessed placeholder for new
   // construction; $0 is the same placeholder under a different MLS
   // feed's convention. Null both.
@@ -544,17 +553,17 @@ export function sanitizeTaxAnnual(raw: number | undefined): number | null {
  * nothing qualifies.
  */
 function earliestListedEvent(
-  events: RawListingHistoryEvent[] | undefined
+  events: RawListingHistoryEvent[] | undefined,
 ): RawListingHistoryEvent | undefined {
   if (!events || events.length === 0) return undefined;
   const listed = events.filter(
     (e) =>
       e.status === 1 ||
-      (e.localizedStatus && /^listed$/i.test(e.localizedStatus))
+      (e.localizedStatus && /^listed$/i.test(e.localizedStatus)),
   );
   if (listed.length === 0) return undefined;
   return listed.reduce((earliest, e) =>
-    (e.timestamp ?? Infinity) < (earliest.timestamp ?? Infinity) ? e : earliest
+    (e.timestamp ?? Infinity) < (earliest.timestamp ?? Infinity) ? e : earliest,
   );
 }
 
@@ -563,7 +572,7 @@ function earliestListedEvent(
  * null if the timestamp is missing.
  */
 function daysSinceMs(ms: number | undefined): number | null {
-  if (typeof ms !== 'number') return null;
+  if (typeof ms !== "number") return null;
   const delta = Date.now() - ms;
   if (!Number.isFinite(delta)) return null;
   return Math.floor(delta / 86_400_000);
@@ -575,8 +584,8 @@ function daysSinceMs(ms: number | undefined): number | null {
  * the primary `address`.
  */
 function normalizeAddressForCompare(s: string | undefined): string {
-  if (!s) return '';
-  return s.toLowerCase().replace(/[,#.]/g, '').replace(/\s+/g, ' ').trim();
+  if (!s) return "";
+  return s.toLowerCase().replace(/[,#.]/g, "").replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -586,12 +595,12 @@ function normalizeAddressForCompare(s: string | undefined): string {
  */
 export function collectAddressAlternates(
   primary: string | undefined,
-  raw: RawListing
+  raw: RawListing,
 ): string[] {
   const primaryNorm = normalizeAddressForCompare(primary);
   const candidates: string[] = [];
   for (const c of raw.mlsAlternateAddresses ?? []) {
-    if (typeof c === 'string' && c.trim()) candidates.push(c.trim());
+    if (typeof c === "string" && c.trim()) candidates.push(c.trim());
   }
   const seen = new Set<string>();
   const alternates: string[] = [];
@@ -606,7 +615,7 @@ export function collectAddressAlternates(
 
 export function format(
   listing: RawListing,
-  opts: FormatOptions = {}
+  opts: FormatOptions = {},
 ): FormattedProperty {
   const loc = listing.location ?? {};
   const size = listing.size ?? {};
@@ -614,10 +623,10 @@ export function format(
   const dInfo = listing.detailedInfo ?? {};
   const dates = listing.date ?? {};
   const url = listing.pageLink
-    ? listing.pageLink.startsWith('http')
+    ? listing.pageLink.startsWith("http")
       ? listing.pageLink
       : `https://www.compass.com${listing.pageLink}`
-    : `https://www.compass.com/homedetails/${listing.listingIdSHA ?? ''}_lid/`;
+    : `https://www.compass.com/homedetails/${listing.listingIdSHA ?? ""}_lid/`;
   const propertyUrl = listing.navigationPageLink
     ? `https://www.compass.com${listing.navigationPageLink}`
     : undefined;
@@ -639,7 +648,7 @@ export function format(
   });
   const hoaMonthlyUsd = hoaToMonthlyUsd(
     dInfo.associationFee?.amount,
-    dInfo.associationFee?.frequency
+    dInfo.associationFee?.frequency,
   );
   const taxAnnual = sanitizeTaxAnnual(dInfo.taxAnnualAmount);
   // price_drop_* + days_on_market: derive from the events[] trail.
@@ -649,8 +658,8 @@ export function format(
   let priceDropAmount: number | null = null;
   let priceDropPercent: number | null = null;
   if (
-    typeof previousListPrice === 'number' &&
-    typeof currentPrice === 'number' &&
+    typeof previousListPrice === "number" &&
+    typeof currentPrice === "number" &&
     previousListPrice > 0 &&
     previousListPrice !== currentPrice
   ) {
@@ -663,11 +672,12 @@ export function format(
   // Primary listing agent (issue #52). Compass surfaces multiple agents
   // sometimes; the first entry is the listing agent.
   const primaryAgent = listing.agents?.[0];
-  let listingAgent: FormattedProperty['listing_agent'];
+  let listingAgent: FormattedProperty["listing_agent"];
   if (primaryAgent) {
     const composedName =
-      [primaryAgent.firstName, primaryAgent.lastName].filter(Boolean).join(' ') ||
-      undefined;
+      [primaryAgent.firstName, primaryAgent.lastName]
+        .filter(Boolean)
+        .join(" ") || undefined;
     listingAgent = {
       id: primaryAgent.id,
       name: primaryAgent.fullName ?? composedName,
@@ -740,18 +750,18 @@ export function format(
 
 export function registerPropertyTools(
   server: McpServer,
-  client: CompassClient
+  client: CompassClient,
 ): void {
   server.registerTool(
-    'compass_get_property',
+    "compass_get_property",
     {
-      title: 'Get Compass property details',
+      title: "Get Compass property details",
       description:
         "Fetch a property's full Compass record. Pass either `url` (a full Compass homedetails URL or path from a compass_search_properties result) or `listing_id_sha` alone — when only the sha is supplied, the tool resolves the canonical /homedetails/<slug>/<sha>_lid/ path internally via Compass site search. Returns address, neighborhood, beds/baths, sqft, lot size (`lot_size_sqft` plus the derived `lot_size_acres` = round(sqft / 43560, 2), null — never 0 — for condos / missing lots), price + price-per-sqft, monthly charges, MLS status, amenities, schools, parcel number, and the canonical Compass URL. Also returns `extracted_features` (lake_front, hot_tub, basement, furnished, dock, community) keyword-parsed from the description.\n\n" +
         "DESCRIPTION HANDLING: The raw `description` (Compass marketing copy) is omitted by default — pass `include_description: true` to keep it. `extracted_features` is always populated and usually sufficient.\n\n" +
         "URL FORMS: Compass exposes two URL shapes for a listing. `_lid/` (content-addressed by `listing_id_sha`) — what this tool fetches and what `url` returns — is the form to use for reading the current listing record. `_pid/` (opaque short ID, in `property_url` and the surfaced `pid` field) is **stable across re-listings** and is the right choice for any long-lived reference (trackers, sheets, bookmarks); sha-based URLs go stale when a property is delisted and relisted. Read-only; safe to call repeatedly.",
       annotations: {
-        title: 'Get Compass property details',
+        title: "Get Compass property details",
         readOnlyHint: true,
         idempotentHint: true,
         openWorldHint: true,
@@ -761,19 +771,19 @@ export function registerPropertyTools(
           .string()
           .optional()
           .describe(
-            'Compass homedetails URL or path (e.g. /homedetails/162-04-12th-Rd-Queens-NY-11357/2109718971930079225_lid/). One of `url` or `listing_id_sha` is required; pass `url` when you have it (no resolver fetch needed).'
+            "Compass homedetails URL or path (e.g. /homedetails/162-04-12th-Rd-Queens-NY-11357/2109718971930079225_lid/). One of `url` or `listing_id_sha` is required; pass `url` when you have it (no resolver fetch needed).",
           ),
         listing_id_sha: z
           .string()
           .optional()
           .describe(
-            'Compass listing identifier (the SHA inside `<sha>_lid`). Sufficient on its own — the tool will resolve the address slug internally via Compass site search before fetching the homedetails page (one extra HTTP round-trip).'
+            "Compass listing identifier (the SHA inside `<sha>_lid`). Sufficient on its own — the tool will resolve the address slug internally via Compass site search before fetching the homedetails page (one extra HTTP round-trip).",
           ),
         include_description: z
           .boolean()
           .optional()
           .describe(
-            'Include the raw `description` (Compass marketing copy) in the response. Defaults to `false` — `extracted_features` is always populated and usually covers the common needs.'
+            "Include the raw `description` (Compass marketing copy) in the response. Defaults to `false` — `extracted_features` is always populated and usually covers the common needs.",
           ),
       },
     },
@@ -783,8 +793,8 @@ export function registerPropertyTools(
         listing_id_sha,
       });
       return textResult(
-        format(listing, { includeDescription: include_description })
+        format(listing, { includeDescription: include_description }),
       );
-    }
+    },
   );
 }

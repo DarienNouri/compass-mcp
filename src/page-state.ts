@@ -30,15 +30,15 @@
  */
 export function extractBalancedObject(
   text: string,
-  start: number
+  start: number,
 ): unknown | null {
-  if (text[start] !== '{') return null;
+  if (text[start] !== "{") return null;
   let depth = 0;
   let inString = false;
   for (let i = start; i < text.length; i++) {
     const ch = text[i];
     if (inString) {
-      if (ch === '\\') {
+      if (ch === "\\") {
         i++; // skip escaped char
         continue;
       }
@@ -49,8 +49,8 @@ export function extractBalancedObject(
       inString = true;
       continue;
     }
-    if (ch === '{') depth++;
-    else if (ch === '}') {
+    if (ch === "{") depth++;
+    else if (ch === "}") {
       depth--;
       if (depth === 0) {
         const blob = text.slice(start, i + 1);
@@ -76,19 +76,24 @@ export function extractBalancedObject(
  */
 export function extractGlobalAssign(
   html: string,
-  name: string
+  name: string,
 ): Record<string, unknown> | null {
-  // Match `global.<name> = ` or `window.<name> = ` followed by a `{`.
-  const re = new RegExp(
-    `(?:global|window)\\.${name.replace(/[$]/g, '\\$&')}\\s*=\\s*`,
-    'g'
-  );
+  // Match `global.`, `window.`, or `self.` <name> = followed by a `{`.
+  // `self.` was added because Compass's homedetails build started writing
+  // `self.__INITIAL_DATA__ = …` in some sessions, which the old
+  // `global|window`-only anchor missed. Kept to an assignment prefix (not a
+  // bare quoted key) so it can't false-match a nested `"uc":{…}` and regress
+  // the search path.
+  const escaped = name.replace(/[$]/g, "\\$&");
+  const re = new RegExp(`(?:global|window|self)\\.${escaped}\\s*=\\s*`, "g");
   let match: RegExpExecArray | null;
   while ((match = re.exec(html)) !== null) {
-    const after = match.index + match[0].length;
-    if (html[after] !== '{') continue;
+    let after = match.index + match[0].length;
+    // Tolerate whitespace between the `=` and the opening brace.
+    while (after < html.length && /\s/.test(html[after])) after++;
+    if (html[after] !== "{") continue;
     const obj = extractBalancedObject(html, after);
-    if (obj && typeof obj === 'object') {
+    if (obj && typeof obj === "object") {
       return obj as Record<string, unknown>;
     }
   }
@@ -102,13 +107,45 @@ export function extractGlobalAssign(
  * `uc.sharedReactAppProps.initialResults`.
  */
 export function extractUc(html: string): Record<string, unknown> | null {
-  return extractGlobalAssign(html, 'uc');
+  return extractGlobalAssign(html, "uc");
 }
 
 /**
  * Extract `__INITIAL_DATA__` from a Compass page. Used by the homedetails
  * route. The shape is `{props: {…, listingRelation: {listing: …}}}`.
  */
-export function extractInitialData(html: string): Record<string, unknown> | null {
-  return extractGlobalAssign(html, '__INITIAL_DATA__');
+export function extractInitialData(
+  html: string,
+): Record<string, unknown> | null {
+  return extractGlobalAssign(html, "__INITIAL_DATA__");
+}
+
+/**
+ * Build a short, safe diagnostic string describing why a homedetails page
+ * failed to yield `__INITIAL_DATA__`. Surfaced in the thrown error so a
+ * future page-structure change is self-describing instead of opaque —
+ * tells us whether the token is present at all (prefix/shape drift) vs.
+ * absent entirely (bot challenge / auth wall / different page build).
+ */
+export function diagnoseDetailHtml(html: string): string {
+  const len = html.length;
+  const hasToken = html.includes("__INITIAL_DATA__");
+  const hasListingRelation = html.includes("listingRelation");
+  const titleMatch = /<title[^>]*>([^<]{0,120})<\/title>/i.exec(html);
+  const title = titleMatch ? titleMatch[1].trim() : "(no <title>)";
+  const looksBlocked =
+    /captcha|unusual activity|access denied|are you a human|verify you are|cf-browser-verification/i.test(
+      html,
+    );
+  let tokenContext = "";
+  if (hasToken) {
+    const idx = html.indexOf("__INITIAL_DATA__");
+    tokenContext = ` nearToken=${JSON.stringify(
+      html.slice(Math.max(0, idx - 16), idx + 24),
+    )}`;
+  }
+  return (
+    `len=${len} token=${hasToken} listingRelation=${hasListingRelation} ` +
+    `challengeLike=${looksBlocked} title=${JSON.stringify(title)}${tokenContext}`
+  );
 }
