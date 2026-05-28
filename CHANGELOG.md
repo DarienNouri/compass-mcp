@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.0](https://github.com/chrischall/compass-mcp/compare/v0.9.0...v0.10.0) (2026-05-28)
+
+
+### Features
+
+* **properties:** add derived lot_size_acres ([#82](https://github.com/chrischall/compass-mcp/issues/82)) ([#81](https://github.com/chrischall/compass-mcp/issues/81)) ([c8ff30b](https://github.com/chrischall/compass-mcp/commit/c8ff30b3da4dc786088c792ce0c42959af7bf870))
+
+
+### Bug Fixes
+
+* **by-address:** resolve via structured omnisuggest typeahead to fix WAF false-negatives ([#80](https://github.com/chrischall/compass-mcp/issues/80)) ([3272487](https://github.com/chrischall/compass-mcp/commit/327248734fffb8aad275ad96012b61d2465b7a26))
+
+
+### Refactor
+
+* **transport:** read fetchTimeoutMs from bridgeHealth() instead of local DEFAULT — closes drift gap per fetchproxy[#82](https://github.com/chrischall/compass-mcp/issues/82) ([#76](https://github.com/chrischall/compass-mcp/issues/76)) ([6be753c](https://github.com/chrischall/compass-mcp/commit/6be753c5f2f86aefca1621010706d991e75713fb))
+
 ## [0.9.0](https://github.com/chrischall/compass-mcp/compare/v0.8.0...v0.9.0) (2026-05-28)
 
 
