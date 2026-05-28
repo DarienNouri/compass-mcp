@@ -1,0 +1,29 @@
+src/page-state.ts
+  s_be022f9d166cfe::t_c42da90f47fc40 91,93
+  s_be022f9d166cfe::t_a334c34dfd000f 81-86,88,92
+  s_be022f9d166cfe::t_e6c31b9b1b8d8e 33,35,41,52-53,79,87,94,96,110,117-150
+package.json
+  s_be022f9d166cfe::t_957434bb11eba1 34
+src/tools/properties.ts
+  s_be022f9d166cfe::t_210052860418cc 1-4,9-11,16,361,378,385,393,410,422-423,429,463,476,478,481,484,487,490,493,498,522,524-528,540,556,562,566,575,587-588,598,603,618,626,629,651,661-662,675,678-680,753,756,758,764,774,780,786,796,798
+  s_be022f9d166cfe::t_795a305d4f6951 5-8
+tests/page-state.test.ts
+  s_be022f9d166cfe::t_dcbae69ac7bd3b 1,8,10-11,13,16,19,22,27-28,32-33,36,38,42-45,50-67,70-102,106-107,109,112,116
+  s_be022f9d166cfe::t_2e4148d32f0f69 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8fb116d8419ef615e8a4eb107cd008baf18c8016",
+  "prompts": {},
+  "sessions": {
+    "s_be022f9d166cfe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459d4ece-5121-4f46-b8dd-fe9e65aea6c2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Darien Nouri <nouri.darien@gmail.com>"
+    }
+  }
+}
